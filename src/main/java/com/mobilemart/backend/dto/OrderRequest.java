@@ -1,0 +1,8 @@
+package com.mobilemart.backend.dto;
+
+import lombok.Data;
+
+@Data
+public class OrderRequest {
+    private Long addressId;
+}
