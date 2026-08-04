@@ -10,6 +10,8 @@ public class OrderItemResponse {
     private Integer id;
     private Integer productId;
     private String productName;
+    private String brand;
+    private String imageUrl;
     private Integer quantity;
     private BigDecimal pricePerUnit;
     private BigDecimal totalPrice;

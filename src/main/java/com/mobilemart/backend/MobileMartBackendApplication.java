@@ -3,8 +3,17 @@ package com.mobilemart.backend;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import jakarta.annotation.PostConstruct;
+import java.util.TimeZone;
+
 @SpringBootApplication
 public class MobileMartBackendApplication {
+
+    @PostConstruct
+    public void init() {
+        // Set JVM timezone to IST
+        TimeZone.setDefault(TimeZone.getTimeZone("Asia/Kolkata"));
+    }
 
     public static void main(String[] args) {
         SpringApplication.run(MobileMartBackendApplication.class, args);

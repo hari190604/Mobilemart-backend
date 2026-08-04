@@ -3,8 +3,10 @@ package com.mobilemart.backend.service;
 import com.mobilemart.backend.dto.*;
 import com.mobilemart.backend.entity.JwtToken;
 import com.mobilemart.backend.entity.Role;
+import com.mobilemart.backend.entity.Session;
 import com.mobilemart.backend.entity.User;
 import com.mobilemart.backend.repository.JwtTokenRepository;
+import com.mobilemart.backend.repository.SessionRepository;
 import com.mobilemart.backend.repository.UserRepository;
 import com.mobilemart.backend.security.CustomUserDetails;
 import com.mobilemart.backend.security.JwtUtil;
@@ -31,6 +33,9 @@ public class AuthService {
     private JwtTokenRepository jwtTokenRepository;
 
     @Autowired
+    private SessionRepository sessionRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -38,6 +43,9 @@ public class AuthService {
 
     @Autowired
     private AuthenticationManager authenticationManager;
+
+    @Autowired
+    private EmailService emailService;
 
     // Temporary storage for OTPs and Reset Tokens
     private final ConcurrentHashMap<String, String> otpStorage = new ConcurrentHashMap<>();
@@ -66,6 +74,11 @@ public class AuthService {
 
         userRepository.save(user);
 
+        // Send welcome email asynchronously
+        new Thread(() -> {
+            emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
+        }).start();
+
         return new ApiResponse(true, "User registered successfully");
     }
 
@@ -87,8 +100,24 @@ public class AuthService {
         tokenRecord.setUserId(user.getUserId());
         tokenRecord.setToken(jwt);
         // expiration is set to 1 hour (same as token)
-        tokenRecord.setExpiresAt(LocalDateTime.now().plusHours(1)); 
+        LocalDateTime expiryTime = LocalDateTime.now().plusHours(1);
+        tokenRecord.setExpiresAt(expiryTime); 
         jwtTokenRepository.save(tokenRecord);
+
+        // Manage session
+        sessionRepository.findByUserIdAndActiveStatusTrue(user.getUserId())
+            .ifPresent(existingSession -> {
+                existingSession.setActiveStatus(false);
+                sessionRepository.save(existingSession);
+            });
+
+        Session newSession = new Session();
+        newSession.setUserId(user.getUserId());
+        newSession.setJwtToken(jwt);
+        newSession.setLoginTime(LocalDateTime.now());
+        newSession.setExpiryTime(expiryTime);
+        newSession.setActiveStatus(true);
+        sessionRepository.save(newSession);
 
         AuthResponse authResponse = AuthResponse.builder()
                 .token(jwt)
@@ -109,6 +138,13 @@ public class AuthService {
         Optional<JwtToken> tokenOpt = jwtTokenRepository.findByToken(token);
         if (tokenOpt.isPresent()) {
             jwtTokenRepository.delete(tokenOpt.get());
+            
+            // Deactivate session
+            sessionRepository.findByJwtToken(token).ifPresent(session -> {
+                session.setActiveStatus(false);
+                sessionRepository.save(session);
+            });
+            
             return new ApiResponse(true, "Logged out successfully");
         }
         
@@ -176,6 +212,13 @@ public class AuthService {
 
             // Invalidate all tokens for this user
             jwtTokenRepository.deleteByUserId(user.getUserId());
+            
+            // Deactivate active session
+            sessionRepository.findByUserIdAndActiveStatusTrue(user.getUserId())
+                .ifPresent(session -> {
+                    session.setActiveStatus(false);
+                    sessionRepository.save(session);
+                });
 
             return new ApiResponse(true, "Password reset successfully");
         }
@@ -205,6 +248,13 @@ public class AuthService {
 
             // Invalidate all tokens for this user to force re-login
             jwtTokenRepository.deleteByUserId(user.getUserId());
+            
+            // Deactivate active session
+            sessionRepository.findByUserIdAndActiveStatusTrue(user.getUserId())
+                .ifPresent(session -> {
+                    session.setActiveStatus(false);
+                    sessionRepository.save(session);
+                });
 
             return new ApiResponse(true, "Password changed successfully. Please log in again.");
         }

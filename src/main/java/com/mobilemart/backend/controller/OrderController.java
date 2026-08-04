@@ -31,11 +31,12 @@ public class OrderController {
     }
 
     @GetMapping
-    public ResponseEntity<ApiResponse> getMyOrders(
-            Authentication authentication,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<Object> getMyOrders(Authentication authentication) {
         String username = authentication.getName();
-        return ResponseEntity.ok(orderService.getMyOrders(username, page, size));
+        Object response = orderService.getMyOrders(username);
+        if (response == null) {
+            return ResponseEntity.status(401).build();
+        }
+        return ResponseEntity.ok(response);
     }
 }

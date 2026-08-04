@@ -25,9 +25,7 @@ public class RegisterRequest {
     private String email;
     
     @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Password must be at least 8 characters long")
-    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$", 
-             message = "Password must contain uppercase, lowercase, number, and special character")
+    @Size(min = 6, message = "Password must be at least 6 characters long")
     private String password;
     
     @NotBlank(message = "Confirm password is required")

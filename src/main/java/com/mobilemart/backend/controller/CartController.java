@@ -41,4 +41,25 @@ public class CartController {
         String username = authentication.getName();
         return ResponseEntity.ok(cartService.clearCart(username));
     }
+
+    // --- Wishlist Endpoints ---
+
+    @PostMapping("/wishlist/{productId}")
+    public ResponseEntity<ApiResponse> toggleWishlist(Authentication authentication, @PathVariable Integer productId) {
+        String username = authentication.getName();
+        ApiResponse response = cartService.toggleWishlist(username, productId);
+        return ResponseEntity.status(response.isSuccess() ? 200 : 400).body(response);
+    }
+
+    @GetMapping("/wishlist")
+    public ResponseEntity<ApiResponse> getWishlist(Authentication authentication) {
+        String username = authentication.getName();
+        return ResponseEntity.ok(cartService.getWishlist(username));
+    }
+
+    @DeleteMapping("/wishlist/clear")
+    public ResponseEntity<ApiResponse> clearWishlist(Authentication authentication) {
+        String username = authentication.getName();
+        return ResponseEntity.ok(cartService.clearWishlist(username));
+    }
 }
