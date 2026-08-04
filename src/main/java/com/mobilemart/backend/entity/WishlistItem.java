@@ -6,11 +6,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "cart_items")
+@Table(name = "wishlist_items")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CartItem {
+public class WishlistItem {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -23,8 +23,4 @@ public class CartItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
-
-    @Column(nullable = false)
-    private Integer quantity;
-
 }

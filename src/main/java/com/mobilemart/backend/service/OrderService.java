@@ -123,25 +123,31 @@ public class OrderService {
         order.setTotalAmount(totalAmount);
         order.setOrderItems(orderItems);
 
-        // Create Razorpay Order
-        try {
-            RazorpayClient razorpay = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
-            JSONObject orderRequest = new JSONObject();
-            // amount in paise
-            orderRequest.put("amount", totalAmount.multiply(new BigDecimal("100")).intValue());
-            orderRequest.put("currency", "INR");
-            orderRequest.put("receipt", orderId);
+        if ("COD".equalsIgnoreCase(request.getPaymentMethod())) {
+            order.setStatus(OrderStatus.SUCCESS);
+        } else {
+            // Create Razorpay Order
+            try {
+                RazorpayClient razorpay = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
+                JSONObject orderRequest = new JSONObject();
+                // amount in paise
+                orderRequest.put("amount", totalAmount.multiply(new BigDecimal("100")).intValue());
+                orderRequest.put("currency", "INR");
+                orderRequest.put("receipt", orderId);
 
-            com.razorpay.Order razorpayOrder = razorpay.orders.create(orderRequest);
-            order.setRazorpayOrderId(razorpayOrder.get("id"));
-        } catch (RazorpayException e) {
-            return new ApiResponse(false, "Failed to initialize payment gateway: " + e.getMessage());
+                com.razorpay.Order razorpayOrder = razorpay.orders.create(orderRequest);
+                order.setRazorpayOrderId(razorpayOrder.get("id"));
+            } catch (RazorpayException e) {
+                return new ApiResponse(false, "Failed to initialize payment gateway: " + e.getMessage());
+            }
         }
 
         Order savedOrder = orderRepository.save(order);
         
-        // Clear user's cart
-        cartItemRepository.deleteByUser_UserId(user.getUserId());
+        // Only clear user's cart immediately if Cash on Delivery
+        if ("COD".equalsIgnoreCase(request.getPaymentMethod())) {
+            cartItemRepository.deleteByUser_UserId(user.getUserId());
+        }
 
         return new ApiResponse(true, "Order placed successfully", mapToDto(savedOrder));
     }
@@ -174,6 +180,10 @@ public class OrderService {
                 order.setRazorpayPaymentId(request.getRazorpayPaymentId());
                 order.setRazorpaySignature(request.getRazorpaySignature());
                 orderRepository.save(order);
+                
+                // Clear user's cart now that payment is successful
+                cartItemRepository.deleteByUser_UserId(user.getUserId());
+                
                 return new ApiResponse(true, "Payment verified successfully", mapToDto(order));
             } else {
                 return new ApiResponse(false, "Payment verification failed");
@@ -183,19 +193,48 @@ public class OrderService {
         }
     }
 
-    public ApiResponse getMyOrders(String username, int page, int size) {
+    public Object getMyOrders(String username) {
         User user = userRepository.findByUsername(username).orElse(null);
         if (user == null) {
-            return new ApiResponse(false, "User not found");
+            return null; // The controller can handle this if needed
         }
 
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<Order> orders = orderRepository.findByUser_UserId(user.getUserId(), pageable);
-        
-        Page<OrderResponse> responsePage = orders.map(this::mapToDto);
-        return new ApiResponse(true, "Orders fetched successfully", responsePage);
+        List<Order> successOrders = orderRepository.findByUser_UserId(user.getUserId(), Pageable.unpaged())
+                .stream()
+                .filter(o -> o.getStatus() == OrderStatus.SUCCESS)
+                .collect(Collectors.toList());
+
+        List<com.mobilemart.backend.dto.OrderProductDTO> productDTOs = new ArrayList<>();
+        for (Order order : successOrders) {
+            for (OrderItem item : order.getOrderItems()) {
+                Product product = item.getProduct();
+                com.mobilemart.backend.dto.OrderProductDTO dto = com.mobilemart.backend.dto.OrderProductDTO.builder()
+                        .orderId(order.getOrderId())
+                        .productId(product.getProductId())
+                        .name(product.getName())
+                        .description(product.getDescription())
+                        .quantity(item.getQuantity())
+                        .pricePerUnit(item.getPricePerUnit())
+                        .totalPrice(item.getTotalPrice())
+                        .imageUrl(product.getImages() != null && !product.getImages().isEmpty() ? product.getImages().get(0).getImageUrl() : "")
+                        .category(product.getCategory() != null ? product.getCategory().getCategoryName() : "Unknown")
+                        .orderStatus(order.getStatus().name())
+                        .orderDate(order.getCreatedAt())
+                        .build();
+                productDTOs.add(dto);
+            }
+        }
+
+        com.mobilemart.backend.dto.OrderHistoryData data = com.mobilemart.backend.dto.OrderHistoryData.builder()
+                .products(productDTOs)
+                .build();
+
+        return com.mobilemart.backend.dto.OrderHistoryResponse.builder()
+                .role(user.getRole() != null ? user.getRole().name() : "CUSTOMER")
+                .username(user.getUsername())
+                .orders(data)
+                .build();
     }
-    
     public ApiResponse getAllOrders(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<Order> orders = orderRepository.findAll(pageable);
@@ -234,6 +273,8 @@ public class OrderService {
                 .id(item.getId())
                 .productId(item.getProduct().getProductId())
                 .productName(item.getProduct().getName())
+                .brand(item.getProduct().getCategory() != null ? item.getProduct().getCategory().getCategoryName() : "Unknown")
+                .imageUrl(item.getProduct().getImages() != null && !item.getProduct().getImages().isEmpty() ? item.getProduct().getImages().get(0).getImageUrl() : "")
                 .quantity(item.getQuantity())
                 .pricePerUnit(item.getPricePerUnit())
                 .totalPrice(item.getTotalPrice())
