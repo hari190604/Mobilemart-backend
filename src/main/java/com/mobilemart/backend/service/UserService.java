@@ -14,7 +14,7 @@ public class UserService {
     private UserRepository userRepository;
 
     public ApiResponse getUserProfile(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }

@@ -37,13 +37,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = parseJwt(request);
             if (jwt != null) {
+                System.out.println("DEBUG JWT FILTER: parsed jwt: " + jwt.substring(0, Math.min(20, jwt.length())) + "...");
                 // Check if token exists in database (meaning it hasn't been invalidated/logged out)
                 Optional<JwtToken> tokenOpt = jwtTokenRepository.findByToken(jwt);
+                System.out.println("DEBUG JWT FILTER: token present in DB: " + tokenOpt.isPresent());
                 
                 if (tokenOpt.isPresent()) {
                     String username = jwtUtil.extractUsername(jwt);
+                    System.out.println("DEBUG JWT FILTER: username in token: " + username);
 
                     UserDetails userDetails = customUserDetailsService.loadUserByUsername(username);
+                    System.out.println("DEBUG JWT FILTER: loaded user Details: " + userDetails.getUsername() + ", enabled: " + userDetails.isEnabled());
 
                     if (jwtUtil.validateToken(jwt, userDetails)) {
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
@@ -51,11 +55,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                         SecurityContextHolder.getContext().setAuthentication(authentication);
+                        System.out.println("DEBUG JWT FILTER: Auth Successful with authorities: " + userDetails.getAuthorities());
+                    } else {
+                        System.out.println("DEBUG JWT FILTER: JwtUtil validateToken returned false!");
                     }
                 }
             }
         } catch (Exception e) {
             logger.error("Cannot set user authentication: {}", e);
+            e.printStackTrace();
         }
 
         filterChain.doFilter(request, response);

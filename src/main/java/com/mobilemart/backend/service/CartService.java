@@ -35,7 +35,7 @@ public class CartService {
     private UserRepository userRepository;
 
     public ApiResponse addToCart(String username, CartItemRequest request) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -72,7 +72,7 @@ public class CartService {
     }
 
     public ApiResponse getCart(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -100,7 +100,7 @@ public class CartService {
     }
 
     public ApiResponse removeFromCart(String username, Integer cartItemId) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -119,7 +119,7 @@ public class CartService {
     }
     
     public ApiResponse clearCart(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -131,7 +131,7 @@ public class CartService {
     // --- Wishlist Methods ---
 
     public ApiResponse toggleWishlist(String username, Integer productId) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -156,7 +156,7 @@ public class CartService {
     }
 
     public ApiResponse getWishlist(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -184,7 +184,7 @@ public class CartService {
     }
 
     public ApiResponse clearWishlist(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }

@@ -25,7 +25,7 @@ public class AddressService {
 
     @Transactional
     public ApiResponse addAddress(String username, AddressRequest request) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -51,7 +51,7 @@ public class AddressService {
     }
 
     public ApiResponse getUserAddresses(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -63,7 +63,7 @@ public class AddressService {
 
     @Transactional
     public ApiResponse updateAddress(String username, Long addressId, AddressRequest request) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -94,7 +94,7 @@ public class AddressService {
 
     @Transactional
     public ApiResponse deleteAddress(String username, Long addressId) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }

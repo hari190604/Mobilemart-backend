@@ -119,12 +119,19 @@ public class AuthService {
         newSession.setActiveStatus(true);
         sessionRepository.save(newSession);
 
-        AuthResponse authResponse = AuthResponse.builder()
-                .token(jwt)
+        AuthResponse.AuthUser authUser = AuthResponse.AuthUser.builder()
                 .userId(user.getUserId())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(user.getRole())
+                .build();
+
+        AuthResponse authResponse = AuthResponse.builder()
+                .token(jwt)
+                .accessToken(jwt)
+                .tokenType("Bearer")
+                .expiresInMs(3600000L)
+                .user(authUser)
                 .build();
 
         return new ApiResponse(true, "Login successful", authResponse);
@@ -144,18 +151,17 @@ public class AuthService {
                 session.setActiveStatus(false);
                 sessionRepository.save(session);
             });
-            
-            return new ApiResponse(true, "Logged out successfully");
         }
         
-        return new ApiResponse(false, "Invalid or expired session");
+        // Ensure idempotency for empty/null/missing tokens according to spec
+        return new ApiResponse(true, "Logout successful");
     }
 
     public ApiResponse generateOtp(ForgotPasswordRequest request) {
         String identifier = request.getIdentifier();
-        Optional<User> userOpt = userRepository.findByEmail(identifier);
+        Optional<User> userOpt = userRepository.findFirstByEmail(identifier);
         if (userOpt.isEmpty()) {
-            userOpt = userRepository.findByUsername(identifier);
+            userOpt = userRepository.findFirstByUsername(identifier);
         }
 
         if (userOpt.isEmpty()) {
@@ -165,10 +171,12 @@ public class AuthService {
         String otp = String.format("%06d", new Random().nextInt(999999));
         otpStorage.put(identifier, otp);
         
-        // Mocking OTP send
-        System.out.println("=========================================");
-        System.out.println("MOCK OTP FOR " + identifier + ": " + otp);
-        System.out.println("=========================================");
+        final String targetEmail = userOpt.get().getEmail();
+        
+        // Send OTP email asynchronously
+        new Thread(() -> {
+            emailService.sendOtpEmail(targetEmail, otp);
+        }).start();
 
         return new ApiResponse(true, "OTP generated and sent successfully");
     }
@@ -179,9 +187,37 @@ public class AuthService {
 
         if (storedOtp != null && storedOtp.equals(request.getOtp())) {
             otpStorage.remove(identifier);
-            String resetToken = UUID.randomUUID().toString();
-            resetTokenStorage.put(identifier, resetToken);
-            return new ApiResponse(true, "OTP verified successfully", resetToken);
+            
+            Optional<User> userOpt = userRepository.findFirstByEmail(identifier);
+            if (userOpt.isEmpty()) {
+                userOpt = userRepository.findFirstByUsername(identifier);
+            }
+            
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                CustomUserDetails userDetails = new CustomUserDetails(user);
+                String jwt = jwtUtil.generateToken(userDetails);
+                
+                resetTokenStorage.put(identifier, jwt);
+
+                AuthResponse.AuthUser authUser = AuthResponse.AuthUser.builder()
+                        .userId(user.getUserId())
+                        .username(user.getUsername())
+                        .email(user.getEmail())
+                        .role(user.getRole())
+                        .build();
+
+                AuthResponse authResponse = AuthResponse.builder()
+                        .token(jwt)
+                        .accessToken(jwt)
+                        .tokenType("Bearer")
+                        .expiresInMs(3600000L)
+                        .user(authUser)
+                        .build();
+
+                return new ApiResponse(true, "OTP verified successfully", authResponse);
+            }
+            return new ApiResponse(false, "User not found");
         }
         
         return new ApiResponse(false, "Invalid or expired OTP");
@@ -199,9 +235,9 @@ public class AuthService {
             return new ApiResponse(false, "Invalid reset token");
         }
 
-        Optional<User> userOpt = userRepository.findByEmail(identifier);
+        Optional<User> userOpt = userRepository.findFirstByEmail(identifier);
         if (userOpt.isEmpty()) {
-            userOpt = userRepository.findByUsername(identifier);
+            userOpt = userRepository.findFirstByUsername(identifier);
         }
 
         if (userOpt.isPresent()) {
@@ -231,9 +267,9 @@ public class AuthService {
             return new ApiResponse(false, "New passwords do not match");
         }
 
-        Optional<User> userOpt = userRepository.findByEmail(username);
+        Optional<User> userOpt = userRepository.findFirstByEmail(username);
         if (userOpt.isEmpty()) {
-            userOpt = userRepository.findByUsername(username);
+            userOpt = userRepository.findFirstByUsername(username);
         }
 
         if (userOpt.isPresent()) {

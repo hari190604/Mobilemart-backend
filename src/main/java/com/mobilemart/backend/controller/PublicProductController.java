@@ -34,4 +34,5 @@ public class PublicProductController {
         ApiResponse response = productService.getProductsByCategory(categoryId, page, size);
         return ResponseEntity.status(response.isSuccess() ? 200 : 404).body(response);
     }
+
 }

@@ -66,7 +66,7 @@ public class OrderService {
             return new ApiResponse(false, "Shipping address is required");
         }
 
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -154,7 +154,7 @@ public class OrderService {
 
     @Transactional
     public ApiResponse verifyPayment(String username, PaymentVerificationRequest request) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return new ApiResponse(false, "User not found");
         }
@@ -194,7 +194,7 @@ public class OrderService {
     }
 
     public Object getMyOrders(String username) {
-        User user = userRepository.findByUsername(username).orElse(null);
+        User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
             return null; // The controller can handle this if needed
         }
