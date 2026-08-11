@@ -34,4 +34,8 @@ public class ProductRequest {
     private Integer categoryId;
     
     private List<String> imageUrls;
+    
+    private Boolean featured;
+    
+    private Integer displayPriority;
 }

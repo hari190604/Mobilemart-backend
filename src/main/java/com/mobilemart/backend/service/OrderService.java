@@ -193,47 +193,63 @@ public class OrderService {
         }
     }
 
-    public Object getMyOrders(String username) {
+    public ApiResponse getMyOrders(String username) {
         User user = userRepository.findFirstByUsername(username).orElse(null);
         if (user == null) {
-            return null; // The controller can handle this if needed
+            return new ApiResponse(false, "User not found");
         }
 
-        List<Order> successOrders = orderRepository.findByUser_UserId(user.getUserId(), Pageable.unpaged())
+        List<OrderResponse> orders = orderRepository.findByUser_UserId(user.getUserId(), Pageable.unpaged())
                 .stream()
-                .filter(o -> o.getStatus() == OrderStatus.SUCCESS)
+                .map(this::mapToDto)
                 .collect(Collectors.toList());
 
-        List<com.mobilemart.backend.dto.OrderProductDTO> productDTOs = new ArrayList<>();
-        for (Order order : successOrders) {
-            for (OrderItem item : order.getOrderItems()) {
-                Product product = item.getProduct();
-                com.mobilemart.backend.dto.OrderProductDTO dto = com.mobilemart.backend.dto.OrderProductDTO.builder()
-                        .orderId(order.getOrderId())
-                        .productId(product.getProductId())
-                        .name(product.getName())
-                        .description(product.getDescription())
-                        .quantity(item.getQuantity())
-                        .pricePerUnit(item.getPricePerUnit())
-                        .totalPrice(item.getTotalPrice())
-                        .imageUrl(product.getImages() != null && !product.getImages().isEmpty() ? product.getImages().get(0).getImageUrl() : "")
-                        .category(product.getCategory() != null ? product.getCategory().getCategoryName() : "Unknown")
-                        .orderStatus(order.getStatus().name())
-                        .orderDate(order.getCreatedAt())
-                        .build();
-                productDTOs.add(dto);
-            }
+        return new ApiResponse(true, "Orders fetched successfully", orders);
+    }
+
+    @Transactional
+    public ApiResponse cancelOrder(String username, String orderId) {
+        User user = userRepository.findFirstByUsername(username).orElse(null);
+        if (user == null) {
+            return new ApiResponse(false, "User not found");
         }
 
-        com.mobilemart.backend.dto.OrderHistoryData data = com.mobilemart.backend.dto.OrderHistoryData.builder()
-                .products(productDTOs)
-                .build();
+        Optional<Order> orderOpt = orderRepository.findById(orderId);
+        if (orderOpt.isEmpty()) {
+            return new ApiResponse(false, "Order not found");
+        }
 
-        return com.mobilemart.backend.dto.OrderHistoryResponse.builder()
-                .role(user.getRole() != null ? user.getRole().name() : "CUSTOMER")
-                .username(user.getUsername())
-                .orders(data)
-                .build();
+        Order order = orderOpt.get();
+        if (!order.getUser().getUserId().equals(user.getUserId())) {
+            return new ApiResponse(false, "Order does not belong to the user");
+        }
+
+        if (order.getStatus() == OrderStatus.SUCCESS || order.getStatus() == OrderStatus.PENDING) {
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            return new ApiResponse(true, "Order cancelled successfully", mapToDto(order));
+        } else {
+            return new ApiResponse(false, "Order cannot be cancelled in its current status");
+        }
+    }
+
+    public ApiResponse getSecureOrderDetails(String username, String orderId) {
+        User user = userRepository.findFirstByUsername(username).orElse(null);
+        if (user == null) {
+            return new ApiResponse(false, "User not found");
+        }
+
+        Optional<Order> orderOpt = orderRepository.findById(orderId);
+        if (orderOpt.isEmpty()) {
+            return new ApiResponse(false, "Order not found");
+        }
+
+        Order order = orderOpt.get();
+        if (!order.getUser().getUserId().equals(user.getUserId())) {
+            return new ApiResponse(false, "Unauthorized: Order does not belong to user"); // Frontend will handle this as 403
+        }
+
+        return new ApiResponse(true, "Order details fetched successfully", mapToDto(order));
     }
     public ApiResponse getAllOrders(int page, int size) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));

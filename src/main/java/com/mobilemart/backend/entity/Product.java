@@ -44,6 +44,12 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ProductImage> images;
 
+    @Column(nullable = false)
+    private Boolean featured = false;
+
+    @Column(name = "display_priority")
+    private Integer displayPriority;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

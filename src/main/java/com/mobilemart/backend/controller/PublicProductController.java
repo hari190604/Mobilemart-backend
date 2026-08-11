@@ -20,6 +20,11 @@ public class PublicProductController {
         return ResponseEntity.ok(productService.getAllProducts(page, size));
     }
 
+    @GetMapping("/featured")
+    public ResponseEntity<ApiResponse> getFeaturedProducts() {
+        return ResponseEntity.ok(productService.getFeaturedProducts());
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse> getProductById(@PathVariable Integer id) {
         ApiResponse response = productService.getProductById(id);

@@ -1,20 +1,25 @@
 package com.mobilemart.backend.service;
 
 import com.mobilemart.backend.dto.BusinessAnalyticsResponse;
+import com.mobilemart.backend.dto.BusinessAnalyticsResponse.ChartDataPointDto;
 import com.mobilemart.backend.entity.Order;
 import com.mobilemart.backend.entity.OrderItem;
 import com.mobilemart.backend.entity.OrderStatus;
 import com.mobilemart.backend.repository.OrderRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
@@ -23,49 +28,119 @@ public class AdminAnalyticsService {
     @Autowired
     private OrderRepository orderRepository;
 
-    public BusinessAnalyticsResponse getDailyAnalytics() {
-        LocalDateTime start = LocalDate.now().atStartOfDay();
-        LocalDateTime end = start.plusDays(1);
-        List<Order> orders = orderRepository.findByStatusAndDateRange(OrderStatus.SUCCESS, start, end);
-        return mapToAnalytics("DAILY", LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy")), orders);
+    private static class Aggregator {
+        BigDecimal revenue = BigDecimal.ZERO;
+        long orders = 0;
+        long units = 0;
+
+        void addOrder(Order o) {
+            revenue = revenue.add(o.getTotalAmount());
+            orders++;
+            units += o.getOrderItems().stream().mapToInt(OrderItem::getQuantity).sum();
+        }
     }
 
-    public BusinessAnalyticsResponse getMonthlyAnalytics() {
-        LocalDateTime start = LocalDate.now().withDayOfMonth(1).atStartOfDay();
-        LocalDateTime end = start.plusMonths(1);
-        List<Order> orders = orderRepository.findByStatusAndDateRange(OrderStatus.SUCCESS, start, end);
-        return mapToAnalytics("MONTHLY", LocalDate.now().format(DateTimeFormatter.ofPattern("MMMM yyyy")), orders);
+    private List<OrderStatus> getValidStatuses() {
+        return Arrays.asList(OrderStatus.SUCCESS, OrderStatus.SHIPPED, OrderStatus.OUT_FOR_DELIVERY, OrderStatus.DELIVERED);
     }
 
-    public BusinessAnalyticsResponse getYearlyAnalytics() {
-        LocalDateTime start = LocalDate.now().withDayOfYear(1).atStartOfDay();
-        LocalDateTime end = start.plusYears(1);
-        List<Order> orders = orderRepository.findByStatusAndDateRange(OrderStatus.SUCCESS, start, end);
-        return mapToAnalytics("YEARLY", String.valueOf(LocalDate.now().getYear()), orders);
+    public BusinessAnalyticsResponse getAnalyticsForLastNDays(int days) {
+        LocalDateTime end = LocalDate.now().plusDays(1).atStartOfDay();
+        LocalDateTime start = end.minusDays(days);
+        List<Order> orders = orderRepository.findByStatusInAndDateRange(getValidStatuses(), start, end);
+        
+        Map<LocalDate, Aggregator> dailySums = new TreeMap<>();
+        for (int i = days - 1; i >= 0; i--) {
+            dailySums.put(LocalDate.now().minusDays(i), new Aggregator());
+        }
+        
+        for (Order o : orders) {
+            LocalDate d = o.getCreatedAt().toLocalDate();
+            if (dailySums.containsKey(d)) {
+                dailySums.get(d).addOrder(o);
+            }
+        }
+        
+        List<ChartDataPointDto> graphData = new ArrayList<>();
+        dailySums.forEach((date, agg) -> graphData.add(ChartDataPointDto.builder()
+                .label(date.format(DateTimeFormatter.ofPattern("MMM dd")))
+                .revenue(agg.revenue)
+                .ordersCount(agg.orders)
+                .unitsSold(agg.units)
+                .build()));
+
+        return mapToAnalytics(days + " DAYS", "Last " + days + " Days", orders, graphData);
     }
 
+    public BusinessAnalyticsResponse get1YearAnalytics() {
+        LocalDate currentMonth = LocalDate.now().withDayOfMonth(1);
+        LocalDateTime end = currentMonth.plusMonths(1).atStartOfDay();
+        LocalDateTime start = end.minusMonths(12);
+        List<Order> orders = orderRepository.findByStatusInAndDateRange(getValidStatuses(), start, end);
+        
+        Map<LocalDate, Aggregator> monthlySums = new TreeMap<>();
+        for (int i = 11; i >= 0; i--) {
+            monthlySums.put(currentMonth.minusMonths(i), new Aggregator());
+        }
+        
+        for (Order o : orders) {
+            LocalDate d = o.getCreatedAt().toLocalDate().withDayOfMonth(1);
+            if (monthlySums.containsKey(d)) {
+                monthlySums.get(d).addOrder(o);
+            }
+        }
+        
+        List<ChartDataPointDto> graphData = new ArrayList<>();
+        monthlySums.forEach((date, agg) -> graphData.add(ChartDataPointDto.builder()
+                .label(date.format(DateTimeFormatter.ofPattern("MMM yyyy")))
+                .revenue(agg.revenue)
+                .ordersCount(agg.orders)
+                .unitsSold(agg.units)
+                .build()));
+
+        return mapToAnalytics("1 YEAR", "Last 12 Months", orders, graphData);
+    }
+
+    public BusinessAnalyticsResponse getLifetimeAnalytics() {
+        List<Order> orders = orderRepository.findAllByStatusIn(getValidStatuses());
+        
+        Map<Integer, Aggregator> yearlySums = new TreeMap<>();
+        
+        for (Order o : orders) {
+            int y = o.getCreatedAt().getYear();
+            yearlySums.putIfAbsent(y, new Aggregator());
+            yearlySums.get(y).addOrder(o);
+        }
+        
+        if (yearlySums.isEmpty()) {
+            yearlySums.put(LocalDate.now().getYear(), new Aggregator());
+        }
+        
+        List<ChartDataPointDto> graphData = new ArrayList<>();
+        yearlySums.forEach((year, agg) -> graphData.add(ChartDataPointDto.builder()
+                .label(String.valueOf(year))
+                .revenue(agg.revenue)
+                .ordersCount(agg.orders)
+                .unitsSold(agg.units)
+                .build()));
+
+        return mapToAnalytics("LIFETIME", "Lifetime Overview", orders, graphData);
+    }
+    
+    // Kept to fulfill AdminDashboard top stat widgets logic silently picking /admin/revenue/overall initially
     public BusinessAnalyticsResponse getOverallAnalytics() {
-        List<Order> orders = orderRepository.findAllByStatus(OrderStatus.SUCCESS);
-        return mapToAnalytics("OVERALL", "Lifetime", orders);
+        return getLifetimeAnalytics();
     }
 
-    private BusinessAnalyticsResponse mapToAnalytics(String period, String label, List<Order> orders) {
-        BigDecimal totalRevenue = orders.stream()
-                .map(Order::getTotalAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        long totalOrders = orders.size();
-
-        long totalUnitsSold = orders.stream()
-                .flatMap(o -> o.getOrderItems().stream())
-                .mapToInt(OrderItem::getQuantity)
-                .sum();
+    private BusinessAnalyticsResponse mapToAnalytics(String period, String label, List<Order> orders, List<ChartDataPointDto> graphData) {
+        Aggregator totalAgg = new Aggregator();
+        for (Order o : orders) totalAgg.addOrder(o);
 
         List<BusinessAnalyticsResponse.OrderSummaryDto> orderSummaries = orders.stream().map(o -> {
             List<BusinessAnalyticsResponse.OrderLineItemDto> items = o.getOrderItems().stream().map(item -> 
                 BusinessAnalyticsResponse.OrderLineItemDto.builder()
                         .productName(item.getProduct().getName())
-                        .brand(item.getProduct().getCategory().getCategoryName()) // Fallback to category as brand is not heavily typed
+                        .brand(item.getProduct().getCategory().getCategoryName())
                         .category(item.getProduct().getCategory().getCategoryName())
                         .imageUrl(item.getProduct().getImages() != null && !item.getProduct().getImages().isEmpty() ? item.getProduct().getImages().get(0).getImageUrl() : "")
                         .quantity(item.getQuantity())
@@ -87,10 +162,11 @@ public class AdminAnalyticsService {
         return BusinessAnalyticsResponse.builder()
                 .period(period)
                 .label(label)
-                .totalRevenue(totalRevenue)
-                .totalOrders(totalOrders)
-                .totalUnitsSold(totalUnitsSold)
+                .totalRevenue(totalAgg.revenue)
+                .totalOrders(totalAgg.orders)
+                .totalUnitsSold(totalAgg.units)
                 .orders(orderSummaries)
+                .graphData(graphData)
                 .build();
     }
 }

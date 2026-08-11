@@ -13,21 +13,31 @@ public class AdminAnalyticsController {
     @Autowired
     private AdminAnalyticsService adminAnalyticsService;
 
-    @GetMapping("/daily")
-    public ResponseEntity<ApiResponse> getDailyAnalytics() {
-        return ResponseEntity.ok(new ApiResponse(true, "Daily Analytics", adminAnalyticsService.getDailyAnalytics()));
+    @GetMapping
+    public ResponseEntity<ApiResponse> getAnalyticsByRange(@RequestParam(defaultValue = "30d") String range) {
+        Object data;
+        String title;
+        if (range.equalsIgnoreCase("7d")) {
+            data = adminAnalyticsService.getAnalyticsForLastNDays(7);
+            title = "7 Days Analytics";
+        } else if (range.equalsIgnoreCase("90d")) {
+            data = adminAnalyticsService.getAnalyticsForLastNDays(90);
+            title = "90 Days Analytics";
+        } else if (range.equalsIgnoreCase("1y")) {
+            data = adminAnalyticsService.get1YearAnalytics();
+            title = "1 Year Analytics";
+        } else if (range.equalsIgnoreCase("lifetime")) {
+            data = adminAnalyticsService.getLifetimeAnalytics();
+            title = "Lifetime Analytics";
+        } else {
+            // Default to 30d
+            data = adminAnalyticsService.getAnalyticsForLastNDays(30);
+            title = "30 Days Analytics";
+        }
+        return ResponseEntity.ok(new ApiResponse(true, title, data));
     }
 
-    @GetMapping("/monthly")
-    public ResponseEntity<ApiResponse> getMonthlyAnalytics() {
-        return ResponseEntity.ok(new ApiResponse(true, "Monthly Analytics", adminAnalyticsService.getMonthlyAnalytics()));
-    }
-
-    @GetMapping("/yearly")
-    public ResponseEntity<ApiResponse> getYearlyAnalytics() {
-        return ResponseEntity.ok(new ApiResponse(true, "Yearly Analytics", adminAnalyticsService.getYearlyAnalytics()));
-    }
-
+    // Keep overall for fallback mapping
     @GetMapping("/overall")
     public ResponseEntity<ApiResponse> getOverallAnalytics() {
         return ResponseEntity.ok(new ApiResponse(true, "Overall Analytics", adminAnalyticsService.getOverallAnalytics()));

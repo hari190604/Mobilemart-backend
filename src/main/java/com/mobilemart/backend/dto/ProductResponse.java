@@ -23,4 +23,6 @@ public class ProductResponse {
     private List<ProductImageDto> images;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Boolean featured;
+    private Integer displayPriority;
 }

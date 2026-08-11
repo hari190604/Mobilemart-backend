@@ -20,6 +20,16 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate
     );
 
+    @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o WHERE o.status IN :statuses AND o.createdAt >= :startDate AND o.createdAt < :endDate ORDER BY o.createdAt DESC")
+    java.util.List<Order> findByStatusInAndDateRange(
+            @org.springframework.data.repository.query.Param("statuses") java.util.Collection<com.mobilemart.backend.entity.OrderStatus> statuses, 
+            @org.springframework.data.repository.query.Param("startDate") java.time.LocalDateTime startDate, 
+            @org.springframework.data.repository.query.Param("endDate") java.time.LocalDateTime endDate
+    );
+
     @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o WHERE o.status = :status ORDER BY o.createdAt DESC")
     java.util.List<Order> findAllByStatus(@org.springframework.data.repository.query.Param("status") com.mobilemart.backend.entity.OrderStatus status);
+
+    @org.springframework.data.jpa.repository.Query("SELECT o FROM Order o WHERE o.status IN :statuses ORDER BY o.createdAt DESC")
+    java.util.List<Order> findAllByStatusIn(@org.springframework.data.repository.query.Param("statuses") java.util.Collection<com.mobilemart.backend.entity.OrderStatus> statuses);
 }

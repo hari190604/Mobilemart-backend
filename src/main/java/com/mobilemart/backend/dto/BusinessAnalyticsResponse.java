@@ -15,6 +15,16 @@ public class BusinessAnalyticsResponse {
     private Long totalOrders;
     private Long totalUnitsSold;
     private List<OrderSummaryDto> orders;
+    private List<ChartDataPointDto> graphData;
+
+    @Data
+    @Builder
+    public static class ChartDataPointDto {
+        private String label;
+        private BigDecimal revenue;
+        private Long ordersCount;
+        private Long unitsSold;
+    }
     
     @Data
     @Builder

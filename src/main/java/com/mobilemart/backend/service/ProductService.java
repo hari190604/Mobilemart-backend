@@ -38,6 +38,8 @@ public class ProductService {
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
         product.setCategory(categoryOpt.get());
+        product.setFeatured(request.getFeatured() != null ? request.getFeatured() : false);
+        product.setDisplayPriority(request.getDisplayPriority() != null ? request.getDisplayPriority() : 0);
 
         // Handle Images
         List<ProductImage> images = new ArrayList<>();
@@ -72,6 +74,8 @@ public class ProductService {
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
         product.setCategory(categoryOpt.get());
+        product.setFeatured(request.getFeatured() != null ? request.getFeatured() : false);
+        product.setDisplayPriority(request.getDisplayPriority() != null ? request.getDisplayPriority() : 0);
 
         // Update Images (Clear old and add new)
         product.getImages().clear();
@@ -124,6 +128,12 @@ public class ProductService {
         return new ApiResponse(true, "Products fetched successfully", responsePage);
     }
 
+    public ApiResponse getFeaturedProducts() {
+        List<Product> featuredProducts = productRepository.findTop3ByFeaturedTrueOrderByDisplayPriorityAsc();
+        List<ProductResponse> dtos = featuredProducts.stream().map(this::mapToDto).collect(Collectors.toList());
+        return new ApiResponse(true, "Featured products fetched successfully", dtos);
+    }
+
     private ProductResponse mapToDto(Product product) {
         CategoryDto categoryDto = CategoryDto.builder()
                 .categoryId(product.getCategory().getCategoryId())
@@ -150,6 +160,8 @@ public class ProductService {
                 .images(imageDtos)
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
+                .featured(product.getFeatured())
+                .displayPriority(product.getDisplayPriority())
                 .build();
     }
 }
