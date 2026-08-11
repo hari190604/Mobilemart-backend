@@ -71,15 +71,20 @@ public class AuthService {
         user.setEmail(request.getEmail());
         user.setRole(Role.CUSTOMER);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEnabled(false);
 
         userRepository.save(user);
 
-        // Send welcome email asynchronously
+        // Generate OTP and store it
+        String otp = String.format("%06d", new Random().nextInt(999999));
+        otpStorage.put(user.getEmail(), otp);
+
+        // Send OTP email asynchronously
         new Thread(() -> {
-            emailService.sendWelcomeEmail(user.getEmail(), user.getFullName());
+            emailService.sendOtpEmail(user.getEmail(), otp);
         }).start();
 
-        return new ApiResponse(true, "User registered successfully");
+        return new ApiResponse(true, "User registered successfully. Please verify your OTP.");
     }
 
     public ApiResponse loginUser(LoginRequest request) {
@@ -195,6 +200,13 @@ public class AuthService {
             
             if (userOpt.isPresent()) {
                 User user = userOpt.get();
+                
+                // Activate the user if this is their first time verifying
+                if (!user.isEnabled()) {
+                    user.setEnabled(true);
+                    userRepository.save(user);
+                }
+
                 CustomUserDetails userDetails = new CustomUserDetails(user);
                 String jwt = jwtUtil.generateToken(userDetails);
                 
