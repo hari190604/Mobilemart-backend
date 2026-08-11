@@ -57,6 +57,18 @@ public class AuthService {
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
+            Optional<User> existingUserOpt = userRepository.findFirstByEmail(request.getEmail());
+            if (existingUserOpt.isPresent()) {
+                User existingUser = existingUserOpt.get();
+                if (!existingUser.isEnabled()) {
+                    String otp = String.format("%06d", new Random().nextInt(999999));
+                    otpStorage.put(existingUser.getEmail(), otp);
+                    new Thread(() -> {
+                        emailService.sendOtpEmail(existingUser.getEmail(), otp);
+                    }).start();
+                    return new ApiResponse(true, "We have re-sent a new OTP to your email. Please verify.");
+                }
+            }
             return new ApiResponse(false, "Email is already in use");
         }
 
