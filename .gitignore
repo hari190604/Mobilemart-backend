@@ -35,3 +35,9 @@ build/
 ### Maven tooling ###
 apache-maven-3.9.6/
 maven-dist.zip
+
+### Secrets and Backups ###
+.env
+.env.*
+*.sql
+*.pem
